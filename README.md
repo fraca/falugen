@@ -34,6 +34,8 @@ cd test1
 nextflow run ../falugen/main.nf -profile pdc_kth --project naiss2026-X-XXX --input ../samplesheet.csv --diamond_db ../database.dmnd --gene_hit ../gene_prot.fa -resume --outdir ris_test1
 ```
 
+If you get an ```sbatch: error: Batch job submission failed: MaxJobCount limit reached``` you can add the parameter ```-c limits.config```.  
+
 ## Output (`--outdir`)
 
 | Folder | Content |
