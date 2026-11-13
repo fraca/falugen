@@ -8,6 +8,7 @@ samplesheet -> CAT_FASTQ (multi-lane only) -> FASTP -> CAT_MATES (R1+R2 as one q
   -> GAWK_DECOMPRESS_CONTIGS -> MINIPROT_ALIGN -> GAWK_STRIP_COMMENTS
   -> GFFREAD_DNA / GFFREAD_PROTEIN -> GAWK_RENAME_* -> detection_summary.tsv
 ```
+![summary](Schema.png)
 
 ## Input
 
