@@ -10,6 +10,8 @@ samplesheet -> CAT_FASTQ (multi-lane only) -> FASTP -> CAT_MATES (R1+R2 as one q
 ```
 ![summary](Schema.png)
 
+This branch use like input just the fasta file with the proteins and create the diamond database.
+ 
 ## Input
 
 `samplesheet.csv` (`lane` only distinguishes rows; several lanes of one sample are concatenated):
