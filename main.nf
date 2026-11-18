@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 /*
- * falugen: detect a gene in paired-end short reads with official nf-core modules.
+ * falugen: detect genes in paired-end short reads with official nf-core modules.
+ * Input: paired-end reads (samplesheet) + one multi-FASTA with the query proteins.
  */
 
 include { GENEDETECT } from './workflows/genedetect'
@@ -8,9 +9,11 @@ include { GENEDETECT } from './workflows/genedetect'
 workflow {
 
     main:
-    if (!params.input)      { throw new IllegalArgumentException("Missing --input (samplesheet CSV)") }
-    if (!params.diamond_db) { throw new IllegalArgumentException("Missing --diamond_db (DIAMOND .dmnd database)") }
-    if (!params.gene_hit)   { throw new IllegalArgumentException("Missing --gene_hit (protein FASTA used as miniprot query)") }
+    if (!params.input)    { throw new IllegalArgumentException("Missing --input (samplesheet CSV)") }
+    if (!params.proteins) { throw new IllegalArgumentException("Missing --proteins (multi-FASTA with the query proteins)") }
+    if (params.proteins.toString().endsWith('.gz')) {
+        throw new IllegalArgumentException("--proteins must be an uncompressed FASTA file")
+    }
 
     // samplesheet: sample,lane,fastq_1,fastq_2  (several lanes per sample are merged)
     def ch_samplesheet = Channel.fromPath(params.input, checkIfExists: true)
