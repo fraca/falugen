@@ -1,5 +1,7 @@
 # Falugen
 
+This is the old version it take like input a diamond database and just one proteion for the miniprot search.
+
 Detect the presence of a gene in paired-end short reads.
 
 ```
