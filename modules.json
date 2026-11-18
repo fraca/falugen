@@ -19,6 +19,13 @@
                             "modules"
                         ]
                     },
+                    "diamond/makedb": {
+                        "branch": "master",
+                        "git_sha": "b4070340f85cc0822351c854733820811ac4339a",
+                        "installed_by": [
+                            "modules"
+                        ]
+                    },
                     "fastp": {
                         "branch": "master",
                         "git_sha": "b4070340f85cc0822351c854733820811ac4339a",
