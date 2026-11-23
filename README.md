@@ -1,6 +1,6 @@
 # Falugen
 
-Detect the presence of protein in paired-end short reads.
+Falugen is a Nextflow pipeline designed to detect the presence of specific proteins in paired-end short-read sequencing data.
 
 ```
 proteins.faa -> DIAMOND_MAKEDB ------------------------------------------+
