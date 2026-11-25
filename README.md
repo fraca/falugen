@@ -1,13 +1,13 @@
 # Falugen
 
-Falugen is a Nextflow pipeline designed to detect the presence of specific proteins in paired-end short-read sequencing data.
+Detect the presence of protein in paired-end short reads.
 
 ```
 proteins.faa -> DIAMOND_MAKEDB ------------------------------------------+
 samplesheet -> CAT_FASTQ (multi-lane only) -> FASTP -> CAT_MATES (R1+R2) -> DIAMOND_BLASTX
   -> GAWK_HIT_IDS -> SEQKIT_GREP (R1, R2) -> MEGAHIT -> GAWK_DECOMPRESS_CONTIGS
   -> MINIPROT_ALIGN (all proteins, one job per sample) -> GAWK_STRIP_COMMENTS
-  -> GFFREAD_DNA / GFFREAD_PROTEIN -> GAWK_SPLIT_* (one FASTA per gene) -> detection_summary.tsv
+  -> GFFREAD_DNA / GFFREAD_PROTEIN -> GAWK_SPLIT_* (one FASTA pair per distinct contig locus) -> detection_summary.tsv
 ```
 ![summary](Schema.png)
 
@@ -52,10 +52,10 @@ If you get ```cat: write error: No space left on device``` you can add the param
 | `selected_reads/` | R1/R2 reads of the pairs with a hit |
 | `assembly/` | MEGAHIT contigs (`<sample>.contigs.fa.gz`) |
 | `miniprot/` | miniprot GFF with all proteins (`<sample>.gff`) |
-| `sequences/` | one file per sample and detected gene: `<sample>_<gene>_DNA.fasta`, `<sample>_<gene>_protein.fasta`; headers `<sample>_<gene>_<n>` |
-| `summary/detection_summary.tsv` | one row per sample and gene (see below) |
+| `sequences/` | one DNA/protein FASTA pair per distinct sample locus: `<sample>_<contig>_<start>_<end>_DNA.fasta` and `<sample>_<contig>_<start>_<end>_protein.fasta`; FASTA header is `<contig>_<start>_<end>`. When different query proteins align to the same contig coordinates, only one pair is written. |
+| `summary/detection_summary.tsv` | one row per sample and input query protein (see below) |
 
-`detection_summary.tsv` columns: `sample, gene, status, reason, miniprot_alignments, cds_features`.
+`detection_summary.tsv` columns: `sample, gene, contig_start_end, status, reason, miniprot_alignments, cds_features`. `contig_start_end` contains the distinct locus identifier(s) associated with that query protein, using the miniprot mRNA contig and 1-based inclusive start/end coordinates; multiple loci are separated by semicolons, and the field is empty when there is no miniprot mRNA alignment. The same locus identifier can appear on multiple protein rows when multiple query proteins match that locus.
 `status` is `POSITIVE` (at least one CDS feature aligned from that protein) or `NOT_DETECTED`; `reason` is
 `cds_feature_found`, `no_alignment_for_gene`, `no_diamond_hits`, `no_assembled_contigs` or
 `no_miniprot_alignment` (the last three apply to every gene of that sample).

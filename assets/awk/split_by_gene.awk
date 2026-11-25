@@ -1,28 +1,40 @@
-# Split gffread FASTA (CDS DNA or protein) into one file per gene and rename the headers.
+# Split gffread FASTA into one file per distinct genomic locus.
 #   awk -v p=<sample> -v kind=<DNA|protein> -f split_by_gene.awk <miniprot.gff> <gffread.fasta>
-# The gene of each transcript is the protein it was aligned from (Target= of the miniprot mRNA line).
-# Output files: <sample>_<gene>_<kind>.fasta ; headers: >sample_gene_n
+# The miniprot mRNA row provides the contig and 1-based inclusive start/end coordinates.
+# Output files: <sample>_<contig>_<start>_<end>_<kind>.fasta
+# FASTA header: >contig_start_end
+# If several query proteins map to the same locus, keep only the first FASTA record.
 function clean(s) { gsub(/[^A-Za-z0-9._-]/, "_", s); return s }
-FNR == NR {                                   # first file: GFF with the comment lines removed
+
+FILENAME == ARGV[1] {                         # first file: miniprot GFF
     if ($0 == "" || $0 ~ /^#/) next
     n = split($0, f, "\t")
     if (n >= 9 && f[3] == "mRNA") {
-        id = ""; target = ""
+        id = ""
         m = split(f[9], a, ";")
         for (i = 1; i <= m; i++) {
-            if (a[i] ~ /^ID=/)     id = substr(a[i], 4)
-            if (a[i] ~ /^Target=/) { split(substr(a[i], 8), t, " "); target = t[1] }
+            if (a[i] ~ /^ID=/) id = substr(a[i], 4)
         }
-        if (id != "") gene[id] = (target != "" ? target : "unknown")
+        if (id != "" && f[1] != "" && f[4] != "" && f[5] != "") {
+            locus[id] = clean(f[1]) "_" f[4] "_" f[5]
+        }
     }
     next
 }
-/^>/ {                                        # second file: FASTA
+
+/^>/ {                                        # second file: gffread FASTA
     id = substr($1, 2)
-    g = (id in gene) ? clean(gene[id]) : "unknown"
-    cnt[g]++
-    out = p "_" g "_" kind ".fasta"
-    print ">" p "_" g "_" cnt[g] > out
+    key = (id in locus) ? locus[id] : ""
+    if (key == "" || key in seen) {
+        write_record = 0
+        next
+    }
+
+    seen[key] = 1
+    write_record = 1
+    out = clean(p) "_" key "_" kind ".fasta"
+    print ">" key > out
     next
 }
-{ print > out }
+
+write_record { print >> out }

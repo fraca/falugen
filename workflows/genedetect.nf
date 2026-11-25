@@ -23,8 +23,8 @@ include { GFFREAD as GFFREAD_PROTEIN      } from '../modules/nf-core/gffread/mai
 include { GAWK as GAWK_SPLIT_DNA          } from '../modules/nf-core/gawk/main'
 include { GAWK as GAWK_SPLIT_PROTEIN      } from '../modules/nf-core/gawk/main'
 
-def formatRow(sample, gene, status, reason, n_aln, n_cds) {
-    return [ sample, gene, status, reason, n_aln, n_cds ].join('\t')
+def formatRow(sample, gene, contig_start_end, status, reason, n_aln, n_cds) {
+    return [ sample, gene, contig_start_end, status, reason, n_aln, n_cds ].join('\t')
 }
 
 workflow GENEDETECT {
@@ -122,7 +122,7 @@ workflow GENEDETECT {
         nohit: true
     }
 
-    // ---- 7. extract CDS (DNA) and protein sequences, then split them by gene ----------
+    // ---- 7. extract CDS (DNA) and protein sequences, then split them by genomic locus --
     def ch_gffread = ch_feat.hit
         .map { meta, gff -> [ meta.id, meta, gff ] }
         .join( ch_assembly.map { meta, contigs -> [ meta.id, contigs ] } )
@@ -133,8 +133,8 @@ workflow GENEDETECT {
     GFFREAD_DNA( ch_gffread.gff, ch_gffread.fasta )
     GFFREAD_PROTEIN( ch_gffread.gff, ch_gffread.fasta )
 
-    // one awk call per sample reads the GFF (gene of each transcript) and the FASTA, and writes
-    // <sample>_<gene>_DNA.fasta / <sample>_<gene>_protein.fasta
+    // One FASTA pair per distinct sample/locus. The locus key is contig_start_end; if
+    // multiple query proteins align to the same locus, the splitter keeps the first record.
     def ch_gff_by_id = ch_feat.hit.map { meta, gff -> [ meta.id, gff ] }
     GAWK_SPLIT_DNA(
         GFFREAD_DNA.out.gffread_fasta
@@ -149,19 +149,20 @@ workflow GENEDETECT {
             .map { id, meta, fa, gff -> [ meta, [ gff, fa ], 'fasta' ] },
         awk_split, true )
 
-    // ---- 8. sample x gene detection table ---------------------------------------------
-    def header = [ 'sample', 'gene', 'status', 'reason', 'miniprot_alignments', 'cds_features' ].join('\t')
+    // ---- 8. sample x query-protein detection table ------------------------------------
+    def header = [ 'sample', 'gene', 'contig_start_end', 'status', 'reason', 'miniprot_alignments', 'cds_features' ].join('\t')
 
     def ch_row_nohits   = ch_ids.nohit.flatMap { meta, ids ->
-        gene_ids.collect { g -> formatRow(meta.id, g, 'NOT_DETECTED', 'no_diamond_hits', 0, 0) } }
+        gene_ids.collect { g -> formatRow(meta.id, g, '', 'NOT_DETECTED', 'no_diamond_hits', 0, 0) } }
     def ch_row_nocontig = ch_contigs.empty.flatMap { meta, contigs ->
-        gene_ids.collect { g -> formatRow(meta.id, g, 'NOT_DETECTED', 'no_assembled_contigs', 0, 0) } }
+        gene_ids.collect { g -> formatRow(meta.id, g, '', 'NOT_DETECTED', 'no_assembled_contigs', 0, 0) } }
     def ch_row_noalign  = ch_feat.nohit.flatMap { meta, gff ->
-        gene_ids.collect { g -> formatRow(meta.id, g, 'NOT_DETECTED', 'no_miniprot_alignment', 0, 0) } }
+        gene_ids.collect { g -> formatRow(meta.id, g, '', 'NOT_DETECTED', 'no_miniprot_alignment', 0, 0) } }
     def ch_row_aligned  = ch_feat.hit.flatMap { meta, gff ->
         def mrna_gene = [:]
         def n_aln     = [:]
         def n_cds     = [:]
+        def loci_by_gene = [:].withDefault { new LinkedHashSet() }
         def feats = gff.readLines()
             .findAll { l -> l && !l.startsWith('#') }
             .collect { l -> l.split('\t') }
@@ -175,6 +176,9 @@ workflow GENEDETECT {
                 def gene = attrs['Target'] ? attrs['Target'].split(' ')[0] : 'unknown'
                 mrna_gene[attrs['ID']] = gene
                 n_aln[gene] = (n_aln[gene] ?: 0) + 1
+                // Match the splitter's sanitization so this value is also the FASTA basename key.
+                def locus = "${f[0]}_${f[3]}_${f[4]}".replaceAll(/[^A-Za-z0-9._-]/, '_')
+                loci_by_gene[gene] << locus
             }
         }
         feats.each { f ->
@@ -185,7 +189,7 @@ workflow GENEDETECT {
             }
         }
         gene_ids.collect { g ->
-            formatRow(meta.id, g,
+            formatRow(meta.id, g, loci_by_gene[g].toList().sort().join(';'),
                 n_cds[g] ? 'POSITIVE' : 'NOT_DETECTED',
                 n_cds[g] ? 'cds_feature_found' : 'no_alignment_for_gene',
                 n_aln[g] ?: 0, n_cds[g] ?: 0)
